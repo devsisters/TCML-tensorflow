@@ -39,8 +39,16 @@ class TCML:
 
         self.dense_blocks = []
 
-        last_output = self.input_placeholder
-        d = self.input_dim
+        feed_label, target_label = tf.split(self.label_placeholder, [self.seq_len-1, 1],
+                                            axis=1)
+        feed_label_one_hot = tf.one_hot(feed_label,
+                                        depth=self.num_classes,
+                                        dtype=tf.float32)
+        feed_label_one_hot = tf.concat([feed_label_one_hot, tf.zeros((self.batch_size, 1, self.num_classes))], axis=1)
+        concated_input = tf.concat([self.input_placeholder, feed_label_one_hot], axis=2)
+
+        last_output = concated_input
+        d = self.input_dim + self.num_classes
         for i, dilation in enumerate(self.dilation):
             name = f"dilation{i}_{dilation}"
             with tf.variable_scope(name):
@@ -55,19 +63,11 @@ class TCML:
                                           dtype=tf.float32,
                                           initializer=tf.contrib.layers.xavier_initializer_conv2d())
 
-            attention_value = tf.nn.conv1d(last_output, conv_kernel, 1, "SAME")
+            key, query = tf.split(last_output, [self.seq_len - 1, 1], axis=1)
+            attention_value = tf.nn.conv1d(key, conv_kernel, 1, "SAME")
+            attention_outputs = self.attention_layer(key, attention_value, query, float(d))
 
-            # dummy key & value at t=0
-            key_t0_raw = tf.get_variable("key_t0", [1, 1, d],
-                                         dtype=tf.float32,
-                                         initializer=tf.contrib.layers.xavier_initializer_conv2d())
-            value_t0_raw = tf.nn.conv1d(key_t0_raw, conv_kernel, 1, "SAME")
-            self.key_t0 = tf.squeeze(key_t0_raw, axis=1)
-            self.value_t0 = tf.squeeze(value_t0_raw, axis=1)
-
-            attention_outputs = self.attention_layer(last_output, attention_value, self.seq_len, float(d))
-
-        # attention_output : [B, T, d']
+        # attention_output : [B, 1, d']
         # channel-wise softmax
         with tf.variable_scope("softmax"):
             kernel_size = [1, self.attention_value_dim, self.num_classes]
@@ -76,9 +76,8 @@ class TCML:
                                           initializer=tf.contrib.layers.xavier_initializer_conv2d())
             softmax_vector = tf.nn.conv1d(attention_outputs, conv_kernel, 1, "SAME")
 
-        self.loss = loss = tf.contrib.seq2seq.sequence_loss(softmax_vector,
-                                                            self.label_placeholder,
-                                                            tf.ones([self.batch_size, self.seq_len], dtype=tf.float32))
+        self.loss = loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=target_label,
+                                                                                         logits=softmax_vector))
         self.train_step = tf.train.AdamOptimizer(self.lr).minimize(loss)
 
     def _causal_conv(self, x, dilation, in_channel, out_channel):
@@ -119,32 +118,12 @@ class TCML:
             residual2 = self._residual_block(residual1, dilation, self.num_dense_filter)
         return tf.concat([x, residual2], axis=2)
 
-    def attention_layer(self, keys, values, T, d):
-        # keys : B x T x d
-        # value : B x T x d'
-        # query : keys. B x T x d
-        results = []  # list of ( B x d' )
-        for i in range(T):
-            # key : B x (t-1) x d
-            if i == 0:
-                # special case.
-                key = self.key_t0  # 1 x d
-                query = tf.gather(keys, (i, ), axis=1)  # B x 1 x d
-                value = self.value_t0  # 1 x d'
-
-                attention = tf.nn.softmax(tf.divide(tf.einsum("ijk,lk->ijl", query, key), tf.sqrt(d)))  # B x 1 x (t-1)
-                result = tf.multiply(attention, value)  # B x d'
-                results.append(tf.squeeze(result, axis=1))
-            else:
-                key = tf.gather(keys, list(range(i)), axis=1)
-                query = tf.gather(keys, (i, ), axis=1)
-                value = tf.gather(values, list(range(i)), axis=1)
-
-                attention = tf.nn.softmax(tf.divide(tf.matmul(query, key, transpose_b=True), tf.sqrt(d)))  # 1 x (t-1)
-                result = tf.matmul(attention, value)  # B x d'
-                results.append(tf.squeeze(result, axis=1))
-
-        return tf.stack(results, axis=1)
+    def attention_layer(self, key, value, query, d):
+        # key : B x T-1 x d
+        # value : B x T-1 x d'
+        # query : B x 1 x d
+        attention = tf.nn.softmax(tf.divide(tf.matmul(query, key, transpose_b=True), tf.sqrt(d)))  # 1 x (t-1)
+        return tf.matmul(attention, value)  # B x d'
 
 
 def _make_dummy_data():
