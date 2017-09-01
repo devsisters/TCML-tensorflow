@@ -1,25 +1,9 @@
 import tensorflow as tf
 import numpy as np
-import argparse
-
-
-def define_flags():
-    flags = argparse.ArgumentParser()
-
-    flags.add_argument("--num_classes", type=int, default=None, help="Number of classes[Required]")
-    flags.add_argument("--dilation", type=int, nargs='+', help="List of dilation size[Required]")
-
-    flags.add_argument("--batch_size", type=int, default=128, help="Batch size B[128]")
-    flags.add_argument("--seq_len", type=int, default=20, help="Sequence length T[20]")
-    flags.add_argument("--input_dim", type=int, default=512, help="Dimension of input D[512]")
-    flags.add_argument("--num_dense_filter", type=int, default=128, help="# of filter in Dense block[128]")
-    flags.add_argument("--attention_value_dim", type=int, default=16, help="Dimension of attension value d'[16]")
-    flags.add_argument("--lr", type=float, default=1e-3, help="Learning rate[1e-3]")
-    return flags.parse_args()
 
 
 class TCML:
-    def __init__(self, hparams, is_train):
+    def __init__(self, hparams, input_tensor, label_tensor, is_train):
         assert hparams.num_classes is not None
         assert hparams.dilation is not None
         self.num_classes = hparams.num_classes
@@ -33,8 +17,8 @@ class TCML:
 
         self.filter_width = 2
 
-        self.input_placeholder = tf.placeholder(tf.float32, [None, self.seq_len, self.input_dim])
-        self.label_placeholder = tf.placeholder(tf.int32, [None, self.seq_len, ])
+        self.input_placeholder = tf.cast(input_tensor, tf.float32)
+        self.label_placeholder = label_tensor
         self.is_train = is_train
 
         self.dense_blocks = []
@@ -135,15 +119,20 @@ def _make_dummy_data():
 
 
 def _TCML_test():
-    hparams = define_flags()
+    class Dummy: pass
+    hparams = Dummy()
     hparams.num_classes = 5
     hparams.input_dim = 10
     hparams.num_dense_filter = 16
     hparams.batch_size = 4
+    hparams.seq_len = 20
+    hparams.attention_value_dim = 16
     hparams.dilation = [1, 2, 1, 2]
+    hparams.lr = 1e-3
 
     with tf.Graph().as_default():
-        model = TCML(hparams, True)
+        dummy_input, dummy_label = _make_dummy_data()
+        model = TCML(hparams, tf.stack(dummy_input), tf.stack(dummy_label), True)
 
         config = tf.ConfigProto()
         config.gpu_options.allow_growth = True
@@ -153,14 +142,7 @@ def _TCML_test():
             init = tf.initialize_all_variables()
             sess.run(init)
 
-            dummy_input, dummy_label = _make_dummy_data()
-
-            feed_dict = {
-                model.input_placeholder: dummy_input,
-                model.label_placeholder: dummy_label,
-            }
-
-            _, loss = sess.run([model.train_step, model.loss], feed_dict=feed_dict)
+            _, loss = sess.run([model.train_step, model.loss])
             print(loss)
 
 
