@@ -22,10 +22,11 @@ class FewShotInputQueue:
 
         self.coord = tf.train.Coordinator()
 
-        self.input_placeholder = tf.placeholder(tf.float32, shapes)
-        self.label_placeholder = tf.placeholder(tf.int32, shapes[:1])
-        self.input_enqueue_op = self.input_q.enqueue(self.input_placeholder)
-        self.label_enqueue_op = self.label_q.enqueue(self.label_placeholder)
+        with tf.variable_scope("queue_placeholder"):
+            self.input_placeholder = tf.placeholder(tf.float32, shapes)
+            self.label_placeholder = tf.placeholder(tf.int32, shapes[:1])
+            self.input_enqueue_op = self.input_q.enqueue(self.input_placeholder)
+            self.label_enqueue_op = self.label_q.enqueue(self.label_placeholder)
 
         self._run_enqueue_thread()
 
@@ -62,7 +63,8 @@ class FewShotInputQueue:
         dataset_np = dataset_np[perm]
         label_set = np.asarray(label_set, np.int32)[perm]
 
-        return np.append(dataset_np, last_data, axis=0), np.append(label_set, [last_class_idx], axis=0)
+        return np.expand_dims(np.append(dataset_np, last_data, axis=0), -1),\
+               np.append(label_set, [last_class_idx], axis=0)
 
     def _enqueue_thread_work(self):
         with self.coord.stop_on_exception():
