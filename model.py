@@ -58,11 +58,13 @@ class TCML:
             conv_kernel = tf.get_variable("1x1_conv", kernel_size,
                                           dtype=tf.float32,
                                           initializer=tf.contrib.layers.xavier_initializer_conv2d())
-            softmax_vector = tf.nn.conv1d(attention_outputs, conv_kernel, 1, "SAME")
+            self.last_vector = softmax_vector = tf.nn.conv1d(attention_outputs, conv_kernel, 1, "SAME")
 
         self.loss = loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=target_label,
                                                                                          logits=softmax_vector))
         self.train_step = tf.train.AdamOptimizer(self.lr).minimize(loss)
+
+        self.accuracy = self._calc_accuracy()
 
     def _causal_conv(self, x, dilation, in_channel, out_channel):
         with tf.variable_scope("causal_conv"):
@@ -109,6 +111,16 @@ class TCML:
         attention = tf.nn.softmax(tf.divide(tf.matmul(query, key, transpose_b=True), tf.sqrt(d)))  # 1 x (t-1)
         return tf.matmul(attention, value)  # B x d'
 
+    def _calc_accuracy(self):
+        with tf.name_scope("accuracy"):
+            predictions = tf.argmax(self.last_vector, 2, name="predictions")
+            labels = self.label_placeholder
+            correct_predictions = tf.equal(predictions, labels)
+            accuracy = tf.reduce_mean(tf.cast(correct_predictions, "float"), name="accuracy")
+
+            # self.confusion_matrix = tf.confusion_matrix(labels, predictions, num_classes=self.num_classes)
+            return accuracy
+
 
 def _make_dummy_data():
     # 4 x 20 x 10 input data (float32)
@@ -142,8 +154,8 @@ def _TCML_test():
             init = tf.initialize_all_variables()
             sess.run(init)
 
-            _, loss = sess.run([model.train_step, model.loss])
-            print(loss)
+            _, loss, acc = sess.run([model.train_step, model.loss, model.accuracy])
+            print(loss, acc)
 
 
 if __name__ == "__main__":
