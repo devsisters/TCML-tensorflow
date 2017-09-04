@@ -12,7 +12,8 @@ class FewShotInputQueue:
         :param capacity: int. capacity of queue
         :param inputs: dict that key is class, value is data(d0, ..., dn)
         """
-        self.q = tf.FIFOQueue(capacity, tf.float32, shapes=shapes)
+        self.input_q = tf.FIFOQueue(capacity, tf.float32, shapes=shapes)
+        self.label_q = tf.FIFOQueue(capacity, tf.int32, shapes=shapes[:1])
         self.classes = classes
         self.inputs = inputs
         self.N = N
@@ -21,8 +22,10 @@ class FewShotInputQueue:
 
         self.coord = tf.train.Coordinator()
 
-        self.placeholder = tf.placeholder(tf.float32, shapes)
-        self.enqueue_op = self.q.enqueue(self.placeholder)
+        self.input_placeholder = tf.placeholder(tf.float32, shapes)
+        self.label_placeholder = tf.placeholder(tf.int32, shapes[:1])
+        self.input_enqueue_op = self.input_q.enqueue(self.input_placeholder)
+        self.label_enqueue_op = self.label_q.enqueue(self.label_placeholder)
 
         self._run_enqueue_thread()
 
@@ -34,32 +37,42 @@ class FewShotInputQueue:
         """
         target_classes = random.sample(self.classes, self.N)
         dataset = []
+        label_set = []
 
-        is_first = True
         last_data = None
-        for class_name in target_classes:
+
+        last_class = random.sample(target_classes, 1)[0]
+        last_class_idx = None
+        for i, class_name in enumerate(target_classes):
             data_len = self.inputs[class_name].shape[0]
-            if is_first:
+            if class_name == last_class:
+                last_class_idx = i
                 target_indices = np.random.choice(data_len, self.K + 1, False)
                 target_datas = self.inputs[class_name][target_indices]
                 target_datas, last_data, _ = np.split(target_datas, [self.K, self.K + 1])
-                is_first = False
             else:
                 target_indices = np.random.choice(data_len, self.K, False)
                 target_datas = self.inputs[class_name][target_indices]
             dataset.append(target_datas)
+            label_set += [i] * self.K
 
         dataset_np = np.concatenate(dataset)
-        np.random.shuffle(dataset_np)
+        perm = np.random.permutation(self.N * self.K)
 
-        return np.append(dataset_np, last_data, axis=0)
+        dataset_np = dataset_np[perm]
+        label_set = np.asarray(label_set, np.int32)[perm]
+
+        return np.append(dataset_np, last_data, axis=0), np.append(label_set, [last_class_idx], axis=0)
 
     def _enqueue_thread_work(self):
         with self.coord.stop_on_exception():
             try:
                 while not self.coord.should_stop():
-                    new_data = self._make_one_data()
-                    self.sess.run(self.enqueue_op, feed_dict={self.placeholder: new_data})
+                    new_data, new_label = self._make_one_data()
+                    # XXX: is it safe?
+                    self.sess.run([self.input_enqueue_op, self.label_enqueue_op],
+                                  feed_dict={self.input_placeholder: new_data,
+                                             self.label_placeholder: new_label})
             except Exception as e:
                 print(e)
 
@@ -93,8 +106,10 @@ def _FewShotInputQueue_test():
 
             # N.B. It's more efficient to reuse the same dequeue op in a loop.
             run_options = tf.RunOptions(timeout_in_ms=10000)
-            result = sess.run(q.q.dequeue_many(5), options=run_options)
+            result = sess.run(q.input_q.dequeue_many(10), options=run_options)
+            result_label = sess.run(q.label_q.dequeue_many(10), options=run_options)
             print(result)
+            print(result_label)
 
 
 if __name__ == "__main__":

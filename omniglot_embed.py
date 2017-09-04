@@ -3,7 +3,7 @@ import numpy as np
 
 
 class OmniglotEmbedNetwork:
-    def __init__(self, input_queue, batch_size):
+    def __init__(self, input_queue, label_queue, batch_size):
         '''
          4 blocks of
            {3 × 3 conv (64 filters),
@@ -17,6 +17,7 @@ class OmniglotEmbedNetwork:
         # input : B x T x H x W x C
         # output : B x T x D
         self.input_placeholder = input_queue.dequeue_many(batch_size)
+        self.label_placeholder = label_queue.dequeue_many(batch_size)
 
         with tf.variable_scope("omni_embed_0"):
             last_output = self.add_block(self.input_placeholder, 1, 64)
@@ -58,7 +59,7 @@ def _OmniglotEmbed_test():
         coord = tf.train.Coordinator()
         enqueue_threads = qr.create_threads(sess, coord=coord, start=True)
 
-        model = OmniglotEmbedNetwork(queue, 5)
+        model = OmniglotEmbedNetwork(queue, queue, 5) # second queue is dummy
 
         with sess.as_default():
             init = tf.initialize_all_variables()
