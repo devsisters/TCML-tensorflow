@@ -15,6 +15,8 @@ class TCML:
         self.attention_value_dim = hparams.attention_value_dim
         self.lr = hparams.lr
 
+        self.global_step = None
+
         self.filter_width = 2
 
         self.input_placeholder = tf.cast(input_tensor, tf.float32)
@@ -62,7 +64,7 @@ class TCML:
 
         self.loss = loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=target_label,
                                                                                          logits=softmax_vector))
-        self.train_step = tf.train.AdamOptimizer(self.lr).minimize(loss)
+        self.train_step = tf.train.AdamOptimizer(self.lr).minimize(loss, global_step=self.global_step)
 
         self.accuracy = self._calc_accuracy()
 
