@@ -67,8 +67,11 @@ def train():
         params_to_str = f"tcml_{hparams.input_dim}_{hparams.num_dense_filter}_{hparams.attention_value_dim}_{hparams.lr}"
         log_dir = os.path.abspath(os.path.join(os.path.curdir, "runs", params_to_str))
 
-        #train_loss_summary = tf.summary.scalar("train_loss", tcml.loss)
-        #train_acc_summary = tf.summary.scalar("train_acc", tcml.accuracy)
+        tf.summary.scalar("train_loss", tcml.loss)
+        tf.summary.scalar("train_acc", tcml.accuracy)
+
+        merged = tf.summary.merge_all()
+        train_writer = tf.summary.FileWriter(log_dir,sess.graph)
 
 
         print("Training start")
@@ -89,8 +92,9 @@ def train():
                     print("Early stopping...")
                     break
 
-                _, global_step, loss, acc = sess.run(
-                    [tcml.train_step, tf.assign_add(tcml.global_step, 1), tcml.loss, tcml.accuracy])
+                _, summary, global_step, loss, acc = sess.run(
+                    [tcml.train_step, merged, tf.assign_add(tcml.global_step, 1), tcml.loss, tcml.accuracy])
+                train_writer.add_summary(summary, global_step)
 
                 if step % print_every == 0:
 
