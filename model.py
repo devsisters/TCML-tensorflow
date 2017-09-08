@@ -4,9 +4,8 @@ import numpy as np
 
 class TCML:
     def __init__(self, hparams, input_tensor, label_tensor, is_train):
-        assert hparams.num_classes is not None
         assert hparams.dilation is not None
-        self.num_classes = hparams.num_classes
+        self.num_classes = hparams.n
         self.batch_size = hparams.batch_size
         self.seq_len = hparams.seq_len
         self.input_dim = hparams.input_dim
@@ -135,7 +134,7 @@ def _make_dummy_data():
 def _TCML_test():
     class Dummy: pass
     hparams = Dummy()
-    hparams.num_classes = 5
+    hparams.n = 5
     hparams.input_dim = 10
     hparams.num_dense_filter = 16
     hparams.batch_size = 4

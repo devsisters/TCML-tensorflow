@@ -11,7 +11,6 @@ from input_queue import FewShotInputQueue
 def define_flags():
     flags = argparse.ArgumentParser()
 
-    flags.add_argument("--num_classes", type=int, default=None, help="Number of classes[Required]")
     flags.add_argument("--n", type=int, default=None, help="N [Required]")
     flags.add_argument("--k", type=int, default=None, help="K [Required]")
     flags.add_argument("--dataset", type=str, default="omniglot", help="Dataset (omniglot / miniimage) [omniglot]")
@@ -44,11 +43,13 @@ def train():
     f = open(input_path, "rb")
     inputs = np.load(f)
 
-    g = open(input_path, "rb")
+    g = open(valid_path, "rb")
     valid_inputs = np.load(g)
 
     with tf.Graph().as_default():
-        sess = tf.Session()
+        config = tf.ConfigProto()
+        config.gpu_options.allow_growth = True
+        sess = tf.Session(config=config)
         q = FewShotInputQueue(5 * episode_len, inputs.files, inputs, input_size, hparams.n, hparams.k, sess)
         valid_q = FewShotInputQueue(5 * episode_len, valid_inputs.files, valid_inputs, input_size, hparams.n, hparams.k, sess)
 
@@ -69,12 +70,10 @@ def train():
         #train_loss_summary = tf.summary.scalar("train_loss", tcml.loss)
         #train_acc_summary = tf.summary.scalar("train_acc", tcml.accuracy)
 
-        config = tf.ConfigProto()
-        config.gpu_options.allow_growth = True
 
         print("Training start")
 
-        with sess.as_default():
+        with sess:
             min_dev_loss = 10000
             min_step = -1
 
