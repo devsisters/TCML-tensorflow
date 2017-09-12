@@ -12,8 +12,7 @@ class FewShotInputQueue:
         :param capacity: int. capacity of queue
         :param inputs: dict that key is class, value is data(d0, ..., dn)
         """
-        self.input_q = tf.FIFOQueue(capacity, tf.float32, shapes=shapes)
-        self.label_q = tf.FIFOQueue(capacity, tf.int32, shapes=shapes[:1])
+        self.input_q = tf.FIFOQueue(capacity, [tf.float32, tf.int32], shapes=[shapes, shapes[:1]])
         self.classes = classes
         self.inputs = inputs
         self.N = N
@@ -25,8 +24,7 @@ class FewShotInputQueue:
         with tf.variable_scope("queue_placeholder"):
             self.input_placeholder = tf.placeholder(tf.float32, shapes)
             self.label_placeholder = tf.placeholder(tf.int32, shapes[:1])
-            self.input_enqueue_op = self.input_q.enqueue(self.input_placeholder)
-            self.label_enqueue_op = self.label_q.enqueue(self.label_placeholder)
+            self.input_enqueue_op = self.input_q.enqueue([self.input_placeholder, self.label_placeholder])
 
         self._run_enqueue_thread()
 
@@ -63,7 +61,7 @@ class FewShotInputQueue:
         dataset_np = dataset_np[perm]
         label_set = np.asarray(label_set, np.int32)[perm]
 
-        return np.expand_dims(np.append(dataset_np, last_data, axis=0), -1),\
+        return np.expand_dims(np.append(dataset_np, last_data, axis=0), -1), \
                np.append(label_set, [last_class_idx], axis=0)
 
     def _enqueue_thread_work(self):
@@ -72,7 +70,7 @@ class FewShotInputQueue:
                 while not self.coord.should_stop():
                     new_data, new_label = self._make_one_data()
                     # XXX: is it safe?
-                    self.sess.run([self.input_enqueue_op, self.label_enqueue_op],
+                    self.sess.run([self.input_enqueue_op],
                                   feed_dict={self.input_placeholder: new_data,
                                              self.label_placeholder: new_label})
             except Exception as e:
@@ -100,7 +98,7 @@ def _FewShotInputQueue_test():
         config = tf.ConfigProto()
         config.gpu_options.allow_growth = True
         sess = tf.Session(config=config)
-        q = FewShotInputQueue(10, inputs.keys(), inputs, [10, 2, 2], 3, 3, sess)
+        q = FewShotInputQueue(10, inputs.keys(), inputs, [10, 2, 2, 1], 3, 3, sess)
 
         with sess.as_default():
             init_op = tf.initialize_all_variables()
@@ -108,10 +106,8 @@ def _FewShotInputQueue_test():
 
             # N.B. It's more efficient to reuse the same dequeue op in a loop.
             run_options = tf.RunOptions(timeout_in_ms=10000)
-            result = sess.run(q.input_q.dequeue_many(10), options=run_options)
-            result_label = sess.run(q.label_q.dequeue_many(10), options=run_options)
-            print(result)
-            print(result_label)
+            result, result_label = sess.run(q.input_q.dequeue_many(10), options=run_options)
+            print(result, result_label)
 
 
 if __name__ == "__main__":

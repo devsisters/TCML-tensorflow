@@ -145,7 +145,7 @@ def _TCML_test():
 
     with tf.Graph().as_default():
         dummy_input, dummy_label = _make_dummy_data()
-        model = TCML(hparams, tf.stack(dummy_input), tf.stack(dummy_label), True)
+        model = TCML(hparams, tf.stack(dummy_input), tf.cast(tf.stack(dummy_label), tf.int32), True)
 
         config = tf.ConfigProto()
         config.gpu_options.allow_growth = True

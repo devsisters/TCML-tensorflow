@@ -54,11 +54,11 @@ def train():
         valid_q = FewShotInputQueue(5 * episode_len, valid_inputs.files, valid_inputs, input_size, hparams.n, hparams.k, sess)
 
         with tf.variable_scope("networks"):
-            embed_network = OmniglotEmbedNetwork(q.input_q, q.label_q, hparams.batch_size)
+            embed_network = OmniglotEmbedNetwork(q.input_q, hparams.batch_size)
             tcml = TCML(hparams, embed_network.output, embed_network.label_placeholder, True)
 
         with tf.variable_scope("networks", reuse=True):
-            valid_embed_network = OmniglotEmbedNetwork(valid_q.input_q, valid_q.label_q, hparams.batch_size)
+            valid_embed_network = OmniglotEmbedNetwork(valid_q.input_q, hparams.batch_size)
             valid_tcml = TCML(hparams, valid_embed_network.output, valid_embed_network.label_placeholder, True)
 
         global_step = tf.get_variable('global_step', initializer=0, trainable=False)

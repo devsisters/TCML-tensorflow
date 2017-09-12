@@ -3,7 +3,7 @@ import numpy as np
 
 
 class OmniglotEmbedNetwork:
-    def __init__(self, input_queue, label_queue, batch_size):
+    def __init__(self, input_queue, batch_size):
         '''
          4 blocks of
            {3 × 3 conv (64 filters),
@@ -16,8 +16,7 @@ class OmniglotEmbedNetwork:
 
         # input : B x T x H x W x C
         # output : B x T x D
-        self.input_placeholder = input_queue.dequeue_many(batch_size)
-        self.label_placeholder = label_queue.dequeue_many(batch_size)
+        self.input_placeholder, self.label_placeholder = input_queue.dequeue_many(batch_size)
 
         with tf.variable_scope("omni_embed_0"):
             last_output = self.add_block(self.input_placeholder, 1, 64)
@@ -49,17 +48,18 @@ def _OmniglotEmbed_test():
         sess = tf.Session(config=config)
 
         dummy_input = np.random.rand(10, 28, 28, 1)
+        dummy_label = np.random.randint(5, size=(10, ))
         queue = tf.RandomShuffleQueue(20,
                                       min_after_dequeue=2,
-                                      shapes=dummy_input.shape, dtypes=tf.float32)
-        enqueue = queue.enqueue(dummy_input)
+                                      shapes=[dummy_input.shape, dummy_label.shape], dtypes=[tf.float32, tf.int32])
+        enqueue = queue.enqueue([dummy_input, dummy_label])
         qr = tf.train.QueueRunner(queue, [enqueue] * 2)
         tf.train.add_queue_runner(qr)
 
         coord = tf.train.Coordinator()
         enqueue_threads = qr.create_threads(sess, coord=coord, start=True)
 
-        model = OmniglotEmbedNetwork(queue, queue, 5) # second queue is dummy
+        model = OmniglotEmbedNetwork(queue, 5)
 
         with sess.as_default():
             init = tf.initialize_all_variables()
