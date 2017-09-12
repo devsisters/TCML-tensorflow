@@ -50,15 +50,21 @@ def train():
         config = tf.ConfigProto()
         config.gpu_options.allow_growth = True
         sess = tf.Session(config=config)
+
         q = FewShotInputQueue(5 * episode_len, inputs.files, inputs, input_size, hparams.n, hparams.k, sess)
-        valid_q = FewShotInputQueue(5 * episode_len, valid_inputs.files, valid_inputs, input_size, hparams.n, hparams.k, sess)
+        valid_q = FewShotInputQueue(5 * episode_len, valid_inputs.files, valid_inputs, input_size, hparams.n, hparams.k,
+                                    sess)
+
+        generated_input, generated_label = tf.py_func(q._make_one_data(), [], [tf.float32, tf.int32])
+        batch_tensors = tf.train.batch([generated_input, generated_label], batch_size=hparams.batch_size, num_threads=4,
+                                       shapes=[[None] + list(input_size), [None, episode_len]])
 
         with tf.variable_scope("networks"):
-            embed_network = OmniglotEmbedNetwork(q.input_q, hparams.batch_size)
+            embed_network = OmniglotEmbedNetwork(batch_tensors, hparams.batch_size)
             tcml = TCML(hparams, embed_network.output, embed_network.label_placeholder, True)
 
         with tf.variable_scope("networks", reuse=True):
-            valid_embed_network = OmniglotEmbedNetwork(valid_q.input_q, hparams.batch_size)
+            valid_embed_network = OmniglotEmbedNetwork(batch_tensors, hparams.batch_size)
             valid_tcml = TCML(hparams, valid_embed_network.output, valid_embed_network.label_placeholder, True)
 
         global_step = tf.get_variable('global_step', initializer=0, trainable=False)
@@ -71,8 +77,7 @@ def train():
         tf.summary.scalar("train_acc", tcml.accuracy)
 
         merged = tf.summary.merge_all()
-        train_writer = tf.summary.FileWriter(log_dir,sess.graph)
-
+        train_writer = tf.summary.FileWriter(log_dir, sess.graph)
 
         print("Training start")
 
