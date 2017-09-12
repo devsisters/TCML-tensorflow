@@ -19,15 +19,6 @@ class FewShotInputQueue:
         self.K = K
         self.sess = sess
 
-        self.coord = tf.train.Coordinator()
-
-        with tf.variable_scope("queue_placeholder"):
-            self.input_placeholder = tf.placeholder(tf.float32, shapes)
-            self.label_placeholder = tf.placeholder(tf.int32, shapes[:1])
-            self.input_enqueue_op = self.input_q.enqueue([self.input_placeholder, self.label_placeholder])
-
-        self._run_enqueue_thread()
-
     def _make_one_data(self):
         """
         Extract K datas from N classes, concat and shuffle them.
@@ -62,25 +53,7 @@ class FewShotInputQueue:
         label_set = np.asarray(label_set, np.int32)[perm]
 
         return np.expand_dims(np.append(dataset_np, last_data, axis=0), -1), \
-               np.append(label_set, [last_class_idx], axis=0)
-
-    def _enqueue_thread_work(self):
-        with self.coord.stop_on_exception():
-            try:
-                while not self.coord.should_stop():
-                    new_data, new_label = self._make_one_data()
-                    # XXX: is it safe?
-                    self.sess.run([self.input_enqueue_op],
-                                  feed_dict={self.input_placeholder: new_data,
-                                             self.label_placeholder: new_label})
-            except Exception as e:
-                print(e)
-
-    def _run_enqueue_thread(self):
-        self.threads = threads = [threading.Thread(target=self._enqueue_thread_work, daemon=True) for _ in range(4)]
-        for thread in threads:
-            thread.start()
-            # map(lambda x: x.start(), threads)
+               np.append(label_set, [last_class_idx], axis=0).astype(np.int32)
 
 
 def _make_dummy_inputs():

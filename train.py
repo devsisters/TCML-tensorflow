@@ -52,12 +52,10 @@ def train():
         sess = tf.Session(config=config)
 
         q = FewShotInputQueue(5 * episode_len, inputs.files, inputs, input_size, hparams.n, hparams.k, sess)
-        valid_q = FewShotInputQueue(5 * episode_len, valid_inputs.files, valid_inputs, input_size, hparams.n, hparams.k,
-                                    sess)
 
-        generated_input, generated_label = tf.py_func(q._make_one_data(), [], [tf.float32, tf.int32])
+        generated_input, generated_label = tf.py_func(q._make_one_data, [], [tf.float32, tf.int32])
         batch_tensors = tf.train.batch([generated_input, generated_label], batch_size=hparams.batch_size, num_threads=4,
-                                       shapes=[[None] + list(input_size), [None, episode_len]])
+                                       shapes=[input_size, (episode_len, )])
 
         with tf.variable_scope("networks"):
             embed_network = OmniglotEmbedNetwork(batch_tensors, hparams.batch_size)
@@ -82,6 +80,7 @@ def train():
         print("Training start")
 
         with sess:
+            tf.train.start_queue_runners()
             min_dev_loss = 10000
             min_step = -1
 
@@ -91,6 +90,10 @@ def train():
             last_dev = time.time()
 
             sess.run(tf.initialize_all_variables())
+
+            print(sess.run(batch_tensors))
+            print("###########")
+            print(sess.run(batch_tensors))
 
             for step in range(STEP_NUM):
                 if step - min_step > EARLY_STOP:
