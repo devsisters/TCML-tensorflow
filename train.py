@@ -100,13 +100,15 @@ def train():
                     print("Early stopping...")
                     break
 
+                input_data, label_data = sess.run(batch_tensors)
                 _, summary, global_step, loss, acc = sess.run(
-                    [tcml.train_step, merged, tf.assign_add(tcml.global_step, 1), tcml.loss, tcml.accuracy])
+                    [tcml.train_step, merged, tf.assign_add(tcml.global_step, 1), tcml.loss, tcml.accuracy],
+                    feed_dict={embed_network.input_placeholder:input_data, embed_network.label_placeholder:label_data})
                 train_writer.add_summary(summary, global_step)
 
                 if step % print_every == 0:
 
-                    loss, acc = sess.run([valid_tcml.loss, valid_tcml.accuracy])
+                    #loss, acc = sess.run([valid_tcml.loss, valid_tcml.accuracy])
                     current_time = time.time()
                     print(
                         f'Evaluate(Step {step}/{global_step} : train loss({loss}), acc({acc}) in {current_time - last_dev} s')
