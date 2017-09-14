@@ -40,21 +40,31 @@ def train():
     else:
         raise NotImplementedError
 
-    f = open(input_path, "rb")
-    inputs = np.load(f)
+    with open(input_path, "rb") as f:
+        input_npz = np.load(f)
+        inputs = {}
+        for filename in input_npz.files:
+            inputs[filename] = input_npz[filename]
 
-    g = open(valid_path, "rb")
-    valid_inputs = np.load(g)
+    with open(valid_path, "rb") as f:
+        valid_npz = np.load(f)
+        valid_inputs = {}
+        for filename in valid_npz.files:
+            valid_inputs[filename] = valid_npz[filename]
 
     with tf.Graph().as_default():
         config = tf.ConfigProto()
         config.gpu_options.allow_growth = True
         sess = tf.Session(config=config)
 
-        q = FewShotInputQueue(5 * episode_len, inputs.files, inputs, input_size, hparams.n, hparams.k, sess)
+        q = FewShotInputQueue(5 * episode_len, inputs.keys(), inputs, input_size, hparams.n, hparams.k, sess)
+        valid_q = FewShotInputQueue(5 * episode_len, valid_inputs.keys(), valid_inputs, input_size, hparams.n, hparams.k, sess)
 
         generated_input, generated_label = tf.py_func(q._make_one_data, [], [tf.float32, tf.int32])
         batch_tensors = tf.train.batch([generated_input, generated_label], batch_size=hparams.batch_size, num_threads=4,
+                                       shapes=[input_size, (episode_len, )])
+        a, b = tf.py_func(valid_q._make_one_data, [], [tf.float32, tf.int32])
+        valid_batch_tensors = tf.train.batch([a, b], batch_size=hparams.batch_size, num_threads=4,
                                        shapes=[input_size, (episode_len, )])
 
         with tf.variable_scope("networks"):
@@ -62,7 +72,7 @@ def train():
             tcml = TCML(hparams, embed_network.output, embed_network.label_placeholder, True)
 
         with tf.variable_scope("networks", reuse=True):
-            valid_embed_network = OmniglotEmbedNetwork(batch_tensors, hparams.batch_size)
+            valid_embed_network = OmniglotEmbedNetwork(valid_batch_tensors, hparams.batch_size)
             valid_tcml = TCML(hparams, valid_embed_network.output, valid_embed_network.label_placeholder, True)
 
         global_step = tf.get_variable('global_step', initializer=0, trainable=False)
@@ -70,13 +80,13 @@ def train():
 
         params_to_str = f"tcml_{hparams.input_dim}_{hparams.num_dense_filter}_{hparams.attention_value_dim}_{hparams.lr}"
         log_dir = os.path.abspath(os.path.join(os.path.curdir, "runs", params_to_str))
-
+        
         tf.summary.scalar("train_loss", tcml.loss)
         tf.summary.scalar("train_acc", tcml.accuracy)
 
         merged = tf.summary.merge_all()
         train_writer = tf.summary.FileWriter(log_dir, sess.graph)
-
+        
         print("Training start")
 
         with sess:
@@ -84,40 +94,36 @@ def train():
             min_dev_loss = 10000
             min_step = -1
 
-            STEP_NUM = 1000000
-            EARLY_STOP = 3000
+            STEP_NUM = 10000000
+            EARLY_STOP = 30000000
             print_every = 500
             last_dev = time.time()
 
             sess.run(tf.initialize_all_variables())
 
-            print(sess.run(batch_tensors))
-            print("###########")
-            print(sess.run(batch_tensors))
+            #print(sess.run(batch_tensors))
 
             for step in range(STEP_NUM):
                 if step - min_step > EARLY_STOP:
                     print("Early stopping...")
                     break
 
-                input_data, label_data = sess.run(batch_tensors)
-                _, summary, global_step, loss, acc = sess.run(
-                    [tcml.train_step, merged, tf.assign_add(tcml.global_step, 1), tcml.loss, tcml.accuracy],
-                    feed_dict={embed_network.input_placeholder:input_data, embed_network.label_placeholder:label_data})
-                train_writer.add_summary(summary, global_step)
-
+                _, loss, acc = sess.run(
+                    [tcml.train_step, tcml.loss, tcml.accuracy])
+                
                 if step % print_every == 0:
 
-                    #loss, acc = sess.run([valid_tcml.loss, valid_tcml.accuracy])
+                    loss, acc, summary = sess.run([valid_tcml.loss, valid_tcml.accuracy, merged])
+                    train_writer.add_summary(summary, step)
                     current_time = time.time()
                     print(
-                        f'Evaluate(Step {step}/{global_step} : train loss({loss}), acc({acc}) in {current_time - last_dev} s')
+                        f'Evaluate(Step {step} : train loss({loss}), acc({acc}) in {current_time - last_dev} s')
                     last_dev = current_time
 
                     if loss < min_dev_loss:
                         min_dev_loss = loss
                         min_step = step
-
+                    
 
 if __name__ == "__main__":
     train()

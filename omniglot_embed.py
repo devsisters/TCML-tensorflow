@@ -16,7 +16,7 @@ class OmniglotEmbedNetwork:
 
         # input : B x T x H x W x C
         # output : B x T x D
-        self.input_placeholder, self.label_placeholder = tf.placeholder(tf.float32, [None, 6, 28, 28, 1]), tf.placeholder(tf.int32, [None, 6])
+        self.input_placeholder, self.label_placeholder = inputs
 
         with tf.variable_scope("omni_embed_0"):
             last_output = self.add_block(self.input_placeholder, 1, 64)
