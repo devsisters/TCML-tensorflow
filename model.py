@@ -79,7 +79,7 @@ class TCML:
             sigmoid_filter = tf.get_variable("sigmoid_filter", shape=filter_shape, dtype=tf.float32,
                                              initializer=initializer)
 
-            x_reverse = tf.reverse(x, axis=[2])
+            x_reverse = tf.reverse(x, axis=[1])
 
             tanh_output = tf.tanh(tf.nn.convolution(x_reverse, tanh_filter,
                                                     padding="SAME",
@@ -88,7 +88,7 @@ class TCML:
                                                           padding="SAME",
                                                           dilation_rate=(dilation,)))
 
-            return tf.reverse(tf.multiply(tanh_output, sigmoid_output), axis=[2])
+            return tf.reverse(tf.multiply(tanh_output, sigmoid_output), axis=[1])
 
     def _residual_block(self, x, dilation, num_filter):
         # input shape : [B, T, D]
