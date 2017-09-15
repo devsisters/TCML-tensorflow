@@ -36,7 +36,7 @@ class OmniglotEmbedNetwork:
         batch_mean, batch_var = tf.nn.moments(conv_output, [0])
         batch_normalized = tf.nn.batch_normalization(conv_output, batch_mean, batch_var, None, None, self.epsilon)
 
-        relu_output = tf.maximum(-0.1 * batch_normalized, batch_normalized, name="leaky_relu")
+        relu_output = tf.nn.relu(batch_normalized) - 0.1 * tf.nn.relu(-batch_normalized)
 
         return tf.nn.max_pool3d(relu_output, [1, 1, 2, 2, 1], [1, 1, 2, 2, 1], "VALID")
 
