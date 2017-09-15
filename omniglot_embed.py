@@ -33,8 +33,11 @@ class OmniglotEmbedNetwork:
                                  initializer=tf.contrib.layers.xavier_initializer_conv2d())
         conv_output = tf.nn.conv3d(x, kernel, [1, 1, 1, 1, 1], "SAME")
 
+        beta = tf.get_variable('beta', [out_channel], initializer=tf.constant_initializer(0.0))
+        gamma = tf.get_variable('gamma', [out_channel], initializer=tf.constant_initializer(1.0))
+
         batch_mean, batch_var = tf.nn.moments(conv_output, [0])
-        batch_normalized = tf.nn.batch_normalization(conv_output, batch_mean, batch_var, None, None, self.epsilon)
+        batch_normalized = tf.nn.batch_normalization(conv_output, batch_mean, batch_var, beta, gamma, self.epsilon)
 
         relu_output = tf.nn.relu(batch_normalized) - 0.1 * tf.nn.relu(-batch_normalized)
 
