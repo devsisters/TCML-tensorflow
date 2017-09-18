@@ -12,7 +12,7 @@ class OmniglotEmbedNetwork:
            and 2 × 2 max-pooling}
         '''
 
-        self.epsilon = 1e-3
+        self.epsilon = 1e-10
 
         # input : B x T x H x W x C
         # output : B x T x D
@@ -36,7 +36,7 @@ class OmniglotEmbedNetwork:
         beta = tf.get_variable('beta', [out_channel], initializer=tf.constant_initializer(0.0))
         gamma = tf.get_variable('gamma', [out_channel], initializer=tf.constant_initializer(1.0))
 
-        batch_mean, batch_var = tf.nn.moments(conv_output, [0])
+        batch_mean, batch_var = tf.nn.moments(conv_output, [0, 1, 2, 3])
         batch_normalized = tf.nn.batch_normalization(conv_output, batch_mean, batch_var, beta, gamma, self.epsilon)
 
         relu_output = tf.nn.relu(batch_normalized) - 0.1 * tf.nn.relu(-batch_normalized)
