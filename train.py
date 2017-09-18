@@ -81,11 +81,19 @@ def train():
         params_to_str = f"tcml_{hparams.input_dim}_{hparams.num_dense_filter}_{hparams.attention_value_dim}_{hparams.lr}"
         log_dir = os.path.abspath(os.path.join(os.path.curdir, "runs", params_to_str))
         
-        tf.summary.scalar("train_loss", tcml.loss)
-        tf.summary.scalar("train_acc", tcml.accuracy)
+        train_loss_summary = tf.summary.scalar("train_loss", tcml.loss)
+        train_acc_summary = tf.summary.scalar("train_acc", tcml.accuracy)
 
-        merged = tf.summary.merge_all()
-        train_writer = tf.summary.FileWriter(log_dir, sess.graph)
+        train_merged = tf.summary.merge([train_loss_summary, train_acc_summary])
+
+        valid_loss_summary = tf.summary.scalar("valid_loss", tcml.loss)
+        valid_acc_summary = tf.summary.scalar("valid_acc", tcml.accuracy)
+
+        valid_merged = tf.summary.merge([valid_loss_summary, valid_acc_summary])
+
+        input_summary = tf.summary.image("inputs", valid_embed_network.input_placeholder[0], max_outputs=episode_len)
+
+        summary_writer = tf.summary.FileWriter(log_dir, sess.graph)
         
         print("Training start")
 
@@ -108,16 +116,21 @@ def train():
                     print("Early stopping...")
                     break
 
-                _, loss, acc = sess.run(
-                    [tcml.train_step, tcml.loss, tcml.accuracy])
-                
-                if step % print_every == 0:
+                if step % print_every != 0:
+                    _, loss, acc = sess.run(
+                        [tcml.train_step, tcml.loss, tcml.accuracy])
+                else:
+                    _, loss, acc, train_summary = sess.run(
+                        [tcml.train_step, tcml.loss, tcml.accuracy, train_merged])
 
-                    loss, acc, summary = sess.run([valid_tcml.loss, valid_tcml.accuracy, merged])
-                    train_writer.add_summary(summary, step)
+                    loss, acc, valid_summary, input_summary_eval = sess.run([valid_tcml.loss, valid_tcml.accuracy, valid_merged, input_summary])
+                    summary_writer.add_summary(train_summary, step)
+                    summary_writer.add_summary(valid_summary, step)
+                    summary_writer.add_summary(input_summary_eval, step)
+
                     current_time = time.time()
                     print(
-                        f'Evaluate(Step {step} : train loss({loss}), acc({acc}) in {current_time - last_dev} s')
+                        f'Evaluate(Step {step} : valid loss({loss}), acc({acc}) in {current_time - last_dev} s')
                     last_dev = current_time
 
                     if loss < min_dev_loss:
