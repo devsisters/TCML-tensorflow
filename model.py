@@ -26,6 +26,7 @@ class TCML:
 
         feed_label, target_label = tf.split(self.label_placeholder, [self.seq_len-1, 1],
                                             axis=1)
+        self.target_label = target_label
         feed_label_one_hot = tf.one_hot(feed_label,
                                         depth=self.num_classes,
                                         dtype=tf.float32)
@@ -115,7 +116,7 @@ class TCML:
     def _calc_accuracy(self):
         with tf.name_scope("accuracy"):
             predictions = tf.argmax(self.last_vector, 2, name="predictions", output_type=tf.int32)
-            labels = self.label_placeholder
+            labels = self.target_label
             correct_predictions = tf.equal(predictions, labels)
             accuracy = tf.reduce_mean(tf.cast(correct_predictions, "float"), name="accuracy")
 
