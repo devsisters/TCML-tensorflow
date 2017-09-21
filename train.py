@@ -81,8 +81,8 @@ def train():
         tf.summary.scalar("train_loss", tcml.loss)
         tf.summary.scalar("train_acc", tcml.accuracy)
 
-        tf.summary.scalar("valid_loss", tcml.loss)
-        tf.summary.scalar("valid_acc", tcml.accuracy)
+        tf.summary.scalar("valid_loss", valid_tcml.loss)
+        tf.summary.scalar("valid_acc", valid_tcml.accuracy)
 
         tf.summary.image("inputs", valid_embed_network.input_placeholder[0], max_outputs=episode_len)
 
