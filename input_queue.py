@@ -1,25 +1,21 @@
-import tensorflow as tf
 import numpy as np
 import random
-import threading
 
 
 class FewShotInputQueue:
-    def __init__(self, capacity, classes, inputs, shapes, N, K, sess):
+    def __init__(self, classes, inputs, N, K):
         """
         Initialize
 
         :param capacity: int. capacity of queue
         :param inputs: dict that key is class, value is data(d0, ..., dn)
         """
-        self.input_q = tf.FIFOQueue(capacity, [tf.float32, tf.int32], shapes=[shapes, shapes[:1]])
         self.classes = classes
         self.inputs = inputs
         self.N = N
         self.K = K
-        self.sess = sess
 
-    def _make_one_data(self):
+    def make_one_data(self):
         """
         Extract K datas from N classes, concat and shuffle them.
         Then, add 1 data from random class(in N classes) at tail of data
@@ -67,20 +63,11 @@ def _make_dummy_inputs():
 
 def _FewShotInputQueue_test():
     inputs = _make_dummy_inputs()
-    with tf.Graph().as_default():
-        config = tf.ConfigProto()
-        config.gpu_options.allow_growth = True
-        sess = tf.Session(config=config)
-        q = FewShotInputQueue(10, inputs.keys(), inputs, [10, 2, 2, 1], 3, 3, sess)
+    q = FewShotInputQueue(inputs.keys(), inputs, 3, 3)
 
-        with sess.as_default():
-            init_op = tf.initialize_all_variables()
-            sess.run(init_op)
+    result, result_label = zip(*[q.make_one_data() for _ in range(10)])
 
-            # N.B. It's more efficient to reuse the same dequeue op in a loop.
-            run_options = tf.RunOptions(timeout_in_ms=10000)
-            result, result_label = sess.run(q.input_q.dequeue_many(10), options=run_options)
-            print(result, result_label)
+    print(result, result_label)
 
 
 if __name__ == "__main__":

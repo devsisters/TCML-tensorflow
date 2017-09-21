@@ -57,15 +57,15 @@ def train():
         config.gpu_options.allow_growth = True
         sess = tf.Session(config=config)
 
-        q = FewShotInputQueue(5 * episode_len, inputs.keys(), inputs, input_size, hparams.n, hparams.k, sess)
-        valid_q = FewShotInputQueue(5 * episode_len, valid_inputs.keys(), valid_inputs, input_size, hparams.n, hparams.k, sess)
+        q = FewShotInputQueue(inputs.keys(), inputs, hparams.n, hparams.k)
+        valid_q = FewShotInputQueue(valid_inputs.keys(), valid_inputs, hparams.n, hparams.k)
 
-        generated_input, generated_label = tf.py_func(q._make_one_data, [], [tf.float32, tf.int32])
+        generated_input, generated_label = tf.py_func(q.make_one_data, [], [tf.float32, tf.int32])
         batch_tensors = tf.train.batch([generated_input, generated_label], batch_size=hparams.batch_size, num_threads=4,
-                                       shapes=[input_size, (episode_len, )])
-        a, b = tf.py_func(valid_q._make_one_data, [], [tf.float32, tf.int32])
+                                       shapes=[input_size, (episode_len,)])
+        a, b = tf.py_func(valid_q.make_one_data, [], [tf.float32, tf.int32])
         valid_batch_tensors = tf.train.batch([a, b], batch_size=hparams.batch_size, num_threads=4,
-                                       shapes=[input_size, (episode_len, )])
+                                             shapes=[input_size, (episode_len,)])
 
         with tf.variable_scope("networks"):
             embed_network = OmniglotEmbedNetwork(batch_tensors, hparams.batch_size)
@@ -80,7 +80,7 @@ def train():
 
         params_to_str = f"tcml_{hparams.input_dim}_{hparams.num_dense_filter}_{hparams.attention_value_dim}_{hparams.lr}"
         log_dir = os.path.abspath(os.path.join(os.path.curdir, "runs", params_to_str))
-        
+
         train_loss_summary = tf.summary.scalar("train_loss", tcml.loss)
         train_acc_summary = tf.summary.scalar("train_acc", tcml.accuracy)
 
@@ -109,8 +109,6 @@ def train():
 
             sess.run(tf.initialize_all_variables())
 
-            #print(sess.run(batch_tensors))
-
             for step in range(STEP_NUM):
                 if step - min_step > EARLY_STOP:
                     print("Early stopping...")
@@ -136,7 +134,7 @@ def train():
                     if loss < min_dev_loss:
                         min_dev_loss = loss
                         min_step = step
-                    
+
 
 if __name__ == "__main__":
     train()
