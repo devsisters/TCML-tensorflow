@@ -58,10 +58,10 @@ def train():
 
         generated_input, generated_label = tf.py_func(q.make_one_data, [], [tf.float32, tf.int32])
         batch_tensors = tf.train.batch([generated_input, generated_label], batch_size=hparams.batch_size, num_threads=4,
-                                       shapes=[input_size, (episode_len,)])
+                                       shapes=[input_size, (episode_len,)], capacity=hparams.batch_size*5)
         valid_input, valid_label = tf.py_func(valid_q.make_one_data, [], [tf.float32, tf.int32])
         valid_batch_tensors = tf.train.batch([valid_input, valid_label], batch_size=hparams.batch_size, num_threads=4,
-                                             shapes=[input_size, (episode_len,)])
+                                             shapes=[input_size, (episode_len,)], capacity=hparams.batch_size*5)
 
         with tf.variable_scope("networks"):
             embed_network = OmniglotEmbedNetwork(batch_tensors, hparams.batch_size)
