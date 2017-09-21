@@ -14,13 +14,16 @@ class TCML:
         self.attention_value_dim = hparams.attention_value_dim
         self.lr = hparams.lr
 
-        self.global_step = None
 
         self.filter_width = 2
 
         self.input_placeholder = tf.cast(input_tensor, tf.float32)
         self.label_placeholder = label_tensor
         self.is_train = is_train
+        if self.is_train:
+            self.global_step = tf.get_variable("global_step", initializer=0, trainable=False)
+        else:
+            self.global_step = None
 
         self.dense_blocks = []
 

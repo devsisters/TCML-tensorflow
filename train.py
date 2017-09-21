@@ -69,10 +69,7 @@ def train():
 
         with tf.variable_scope("networks", reuse=True):
             valid_embed_network = OmniglotEmbedNetwork(valid_batch_tensors, hparams.batch_size)
-            valid_tcml = TCML(hparams, valid_embed_network.output, valid_embed_network.label_placeholder, True)
-
-        global_step = tf.get_variable('global_step', initializer=0, trainable=False)
-        tcml.global_step = global_step
+            valid_tcml = TCML(hparams, valid_embed_network.output, valid_embed_network.label_placeholder, False)
 
         params_to_str = f"tcml_{hparams.input_dim}_{hparams.num_dense_filter}_{hparams.attention_value_dim}_{hparams.lr}"
         log_dir = os.path.abspath(os.path.join(os.path.curdir, "runs", params_to_str))
@@ -91,6 +88,7 @@ def train():
             logdir=log_dir,
             save_summaries_secs=120,
             save_model_secs=600,
+            global_step=tcml.global_step,
         )
 
         config = tf.ConfigProto()
@@ -119,17 +117,17 @@ def train():
                     break
 
                 if step % print_every != 0:
-                    _, loss, acc = sess.run(
-                        [tcml.train_step, tcml.loss, tcml.accuracy])
+                    _, loss, acc, global_step = sess.run(
+                        [tcml.train_step, tcml.loss, tcml.accuracy, tcml.global_step])
                 else:
-                    _, loss, acc = sess.run(
-                        [tcml.train_step, tcml.loss, tcml.accuracy])
+                    _, loss, acc, global_step = sess.run(
+                        [tcml.train_step, tcml.loss, tcml.accuracy, tcml.global_step])
 
                     loss, acc = sess.run([valid_tcml.loss, valid_tcml.accuracy])
 
                     current_time = time.time()
                     print(
-                        f'Evaluate(Step {step} : valid loss({loss}), acc({acc}) in {current_time - last_dev} s')
+                        f'Evaluate(Step {step}/{global_step} : valid loss({loss}), acc({acc}) in {current_time - last_dev} s')
 
                     # HUGE VALIDATION
                     if step != 0 and step % HUGE_VALIDATION_CYCLE == 0:
