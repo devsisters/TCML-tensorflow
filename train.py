@@ -105,6 +105,9 @@ def train():
             STEP_NUM = 10000000
             EARLY_STOP = 30000000
             print_every = 500
+
+            HUGE_VALIDATION_CYCLE = print_every * 20
+
             last_dev = time.time()
 
             for step in range(STEP_NUM):
@@ -127,6 +130,27 @@ def train():
                     current_time = time.time()
                     print(
                         f'Evaluate(Step {step} : valid loss({loss}), acc({acc}) in {current_time - last_dev} s')
+
+                    # HUGE VALIDATION
+                    if step != 0 and step % HUGE_VALIDATION_CYCLE == 0:
+                        total_loss = total_acc = 0.
+                        BATCH_NUM = 30
+                        for _ in range(BATCH_NUM):
+                            loss, acc = sess.run([valid_tcml.loss, valid_tcml.accuracy])
+                            total_loss += loss * hparams.batch_size
+                            total_acc += acc * hparams.batch_size
+
+                        total_loss /= BATCH_NUM * hparams.batch_size
+                        total_acc /= BATCH_NUM * hparams.batch_size
+
+                        huge_data_acc_summary = tf.Summary()
+                        huge_data_acc_summary.value.add(tag="huge_data_accuracy", simple_value=total_acc)
+                        supervisor.summary_computed(sess, huge_data_acc_summary, global_step=global_step)
+
+                        huge_data_loss_summary = tf.Summary()
+                        huge_data_loss_summary.value.add(tag="huge_data_loss", simple_value=total_loss)
+                        supervisor.summary_computed(sess, huge_data_loss_summary, global_step=global_step)
+
                     last_dev = current_time
 
                     if loss < min_dev_loss:
