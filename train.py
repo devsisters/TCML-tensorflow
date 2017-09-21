@@ -53,18 +53,14 @@ def train():
             valid_inputs[filename] = valid_npz[filename]
 
     with tf.Graph().as_default():
-        config = tf.ConfigProto()
-        config.gpu_options.allow_growth = True
-        sess = tf.Session(config=config)
-
         q = FewShotInputQueue(inputs.keys(), inputs, hparams.n, hparams.k)
         valid_q = FewShotInputQueue(valid_inputs.keys(), valid_inputs, hparams.n, hparams.k)
 
         generated_input, generated_label = tf.py_func(q.make_one_data, [], [tf.float32, tf.int32])
         batch_tensors = tf.train.batch([generated_input, generated_label], batch_size=hparams.batch_size, num_threads=4,
                                        shapes=[input_size, (episode_len,)])
-        a, b = tf.py_func(valid_q.make_one_data, [], [tf.float32, tf.int32])
-        valid_batch_tensors = tf.train.batch([a, b], batch_size=hparams.batch_size, num_threads=4,
+        valid_input, valid_label = tf.py_func(valid_q.make_one_data, [], [tf.float32, tf.int32])
+        valid_batch_tensors = tf.train.batch([valid_input, valid_label], batch_size=hparams.batch_size, num_threads=4,
                                              shapes=[input_size, (episode_len,)])
 
         with tf.variable_scope("networks"):
@@ -81,24 +77,28 @@ def train():
         params_to_str = f"tcml_{hparams.input_dim}_{hparams.num_dense_filter}_{hparams.attention_value_dim}_{hparams.lr}"
         log_dir = os.path.abspath(os.path.join(os.path.curdir, "runs", params_to_str))
 
-        train_loss_summary = tf.summary.scalar("train_loss", tcml.loss)
-        train_acc_summary = tf.summary.scalar("train_acc", tcml.accuracy)
+        # Summaries
+        tf.summary.scalar("train_loss", tcml.loss)
+        tf.summary.scalar("train_acc", tcml.accuracy)
 
-        train_merged = tf.summary.merge([train_loss_summary, train_acc_summary])
+        tf.summary.scalar("valid_loss", tcml.loss)
+        tf.summary.scalar("valid_acc", tcml.accuracy)
 
-        valid_loss_summary = tf.summary.scalar("valid_loss", tcml.loss)
-        valid_acc_summary = tf.summary.scalar("valid_acc", tcml.accuracy)
+        tf.summary.image("inputs", valid_embed_network.input_placeholder[0], max_outputs=episode_len)
 
-        valid_merged = tf.summary.merge([valid_loss_summary, valid_acc_summary])
+        # Supervisor
+        supervisor = tf.train.Supervisor(
+            logdir=log_dir,
+            save_summaries_secs=120,
+            save_model_secs=600,
+        )
 
-        input_summary = tf.summary.image("inputs", valid_embed_network.input_placeholder[0], max_outputs=episode_len)
+        config = tf.ConfigProto()
+        config.gpu_options.allow_growth = True
 
-        summary_writer = tf.summary.FileWriter(log_dir, sess.graph)
-        
         print("Training start")
 
-        with sess:
-            tf.train.start_queue_runners()
+        with supervisor.managed_session(config=config) as sess:
             min_dev_loss = 10000
             min_step = -1
 
@@ -107,9 +107,10 @@ def train():
             print_every = 500
             last_dev = time.time()
 
-            sess.run(tf.initialize_all_variables())
-
             for step in range(STEP_NUM):
+                if supervisor.should_stop():
+                    break
+
                 if step - min_step > EARLY_STOP:
                     print("Early stopping...")
                     break
@@ -118,13 +119,10 @@ def train():
                     _, loss, acc = sess.run(
                         [tcml.train_step, tcml.loss, tcml.accuracy])
                 else:
-                    _, loss, acc, train_summary = sess.run(
-                        [tcml.train_step, tcml.loss, tcml.accuracy, train_merged])
+                    _, loss, acc = sess.run(
+                        [tcml.train_step, tcml.loss, tcml.accuracy])
 
-                    loss, acc, valid_summary, input_summary_eval = sess.run([valid_tcml.loss, valid_tcml.accuracy, valid_merged, input_summary])
-                    summary_writer.add_summary(train_summary, step)
-                    summary_writer.add_summary(valid_summary, step)
-                    summary_writer.add_summary(input_summary_eval, step)
+                    loss, acc = sess.run([valid_tcml.loss, valid_tcml.accuracy])
 
                     current_time = time.time()
                     print(
