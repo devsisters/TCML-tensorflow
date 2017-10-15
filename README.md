@@ -17,7 +17,7 @@ It will print valiation loss and accuracy.
 Checkpoints and summaries for other metrics are saved in `./runs/tcml_{input_dim}_{num_dense_filter}_{attention_value_dim}_{lr}`
 
 # Results
-Table | 5-way, 1-shot | 5-way, 5-shot
+Omniglot | 5-way, 1-shot | 5-way, 5-shot
 ------------ | ------------- | -------------
 Accuracy | 95.12% | 95.01%
 
