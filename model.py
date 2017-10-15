@@ -13,7 +13,9 @@ class TCML:
         self.dilation = hparams.dilation
         self.attention_value_dim = hparams.attention_value_dim
         self.lr = hparams.lr
+        self.reg_coeff = hparams.reg_coeff
 
+        self.l2_loss = 0
 
         self.filter_width = 2
 
@@ -27,7 +29,7 @@ class TCML:
 
         self.dense_blocks = []
 
-        feed_label, target_label = tf.split(self.label_placeholder, [self.seq_len-1, 1],
+        feed_label, target_label = tf.split(self.label_placeholder, [self.seq_len - 1, 1],
                                             axis=1)
         self.target_label = target_label
         feed_label_one_hot = tf.one_hot(feed_label,
@@ -51,6 +53,7 @@ class TCML:
             conv_kernel = tf.get_variable("1x1_conv", kernel_size,
                                           dtype=tf.float32,
                                           initializer=tf.contrib.layers.xavier_initializer_conv2d())
+            self.l2_loss += tf.nn.l2_loss(conv_kernel)
 
             key, query = tf.split(last_output, [self.seq_len - 1, 1], axis=1)
             attention_value = tf.nn.conv1d(key, conv_kernel, 1, "SAME")
@@ -63,11 +66,13 @@ class TCML:
             conv_kernel = tf.get_variable("1x1_conv", kernel_size,
                                           dtype=tf.float32,
                                           initializer=tf.contrib.layers.xavier_initializer_conv2d())
+            self.l2_loss += tf.nn.l2_loss(conv_kernel)
             self.last_vector = softmax_vector = tf.nn.conv1d(attention_outputs, conv_kernel, 1, "SAME")
 
-        self.loss = loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=target_label,
-                                                                                         logits=softmax_vector))
-        self.train_step = tf.train.AdamOptimizer(self.lr).minimize(loss, global_step=self.global_step)
+        ce_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=target_label,
+                                                                                logits=softmax_vector))
+        self.loss = ce_loss + self.reg_coeff * self.l2_loss
+        self.train_step = tf.train.AdamOptimizer(self.lr).minimize(self.loss, global_step=self.global_step)
 
         self.accuracy = self._calc_accuracy()
 
@@ -137,6 +142,7 @@ def _make_dummy_data():
 
 def _TCML_test():
     class Dummy: pass
+
     hparams = Dummy()
     hparams.n = 5
     hparams.input_dim = 10

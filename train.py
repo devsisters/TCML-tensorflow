@@ -22,6 +22,7 @@ def define_flags():
     flags.add_argument("--num_dense_filter", type=int, default=128, help="# of filter in Dense block[128]")
     flags.add_argument("--attention_value_dim", type=int, default=16, help="Dimension of attension value d'[16]")
     flags.add_argument("--lr", type=float, default=1e-3, help="Learning rate[1e-3]")
+    flags.add_argument("--reg_coeff", type=float, default=1e-3, help="Coefficient for regularization loss[1e-3]")
     return flags.parse_args()
 
 
